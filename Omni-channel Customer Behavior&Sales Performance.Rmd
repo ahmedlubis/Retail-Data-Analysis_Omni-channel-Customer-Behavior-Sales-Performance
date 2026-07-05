@@ -1,0 +1,99 @@
+---
+title: "Retail Data Analysis: Omni-channel Customer Behavior&Sales Performance"
+author: "AhmedLubis"
+date: "2026-07-05"
+output: html_document
+---
+
+1. Data Loading and Merging
+```{r}
+# Load required libraries
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+
+# Load datasets
+customer <- read.csv("customer.csv")
+product <- read.csv("product.csv")
+store <- read.csv("store.csv")
+transaction <- read.csv("transaction.csv")
+
+# Merge transaction data with store, customer, and product details
+full_data <- transaction %>%
+  left_join(store, by = c("store_id" = "id")) %>%
+  left_join(customer, by = c("customer_id" = "id")) %>%
+  left_join(product, by = c("product_id" = "id"))
+
+# Convert created_at to POSIXct datetime format
+full_data$created_at <- as.POSIXct(full_data$created_at, 
+                                   format="%Y-%m-%d %H:%M:%S")
+
+# Preview the combined dataset
+head(full_data)
+```
+
+2. Channel Revenue and Performance Analysis
+```{r}
+# Aggregating sales and quantities by store type
+store_performance <- full_data %>%
+  group_by(type) %>%
+  summarize(
+    total_revenue = sum(total, na.rm = TRUE),
+    total_quantity = sum(quantity, na.rm = TRUE),
+    transaction_count = n()
+  ) %>%
+  arrange(desc(total_revenue))
+
+print(store_performance)
+
+# Visualization of Revenue by Store Type
+ggplot(store_performance, aes(x = reorder(type, -total_revenue), 
+                              y = total_revenue, fill = type)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  labs(title = "Total Revenue by Store Type / Channel", 
+       x = "Store Type", y = "Revenue")
+```
+
+3. Customer Demographic Profiling
+```{r}
+# Spending behavior by gender and city
+demographic_analysis <- full_data %>%
+  group_by(city, gender) %>%
+  summarize(
+    avg_spending = mean(total, na.rm = TRUE),
+    total_spending = sum(total, na.rm = TRUE)
+  ) %>%
+  arrange(desc(total_spending))
+
+print(demographic_analysis)
+
+# Preferred channel by gender
+gender_channel <- full_data %>%
+  group_by(gender, type) %>%
+  summarize(count = n()) %>%
+  mutate(percentage = count / sum(count) * 100)
+
+print(gender_channel)
+```
+
+4. Time-Series / Seasonality Analysis
+```{r}
+# Extracting month and hour of transaction
+full_data <- full_data %>%
+  mutate(
+    month = floor_date(created_at, "month"),
+    hour = hour(created_at)
+  )
+
+# Monthly Sales Trend
+monthly_sales <- full_data %>%
+  group_by(month) %>%
+  summarize(monthly_revenue = sum(total, na.rm = TRUE))
+
+ggplot(monthly_sales, aes(x = month, y = monthly_revenue)) +
+  geom_line(color = "blue", size = 1) +
+  theme_minimal() +
+  labs(title = "Monthly Revenue Growth Trend", x = "Month", y = "Total Sales")
+```
+
